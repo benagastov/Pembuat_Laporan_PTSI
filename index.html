@@ -253,7 +253,7 @@
                 docxnya = replacetext.replace_text_all(docxnya, contractdata)
                 excelnya = xlsx_file
                 docxnya = Final_docxTable_adder.adding_tables_all(docxnya, contractdata, excelnya, dirname)
-                if (js.window.img):
+                if (Sudah_Upload == True):
                     img = js.window.img
                 else:
                     img = PIL.Image.open("logoKontraktor.png")
@@ -354,6 +354,7 @@
         document.getElementById('fileInput').click()
     
     def upload_logoperusahaan():
+        Sudah_Upload = True
         document.getElementById('imageInput').click()
 </py-script>
 
