@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Title</title>
+<link href="https://pyscript.net/releases/2023.05.1/pyscript.css" rel="stylesheet"/>
+<script defer="" src="https://pyscript.net/releases/2023.05.1/pyscript.js"></script>
+<link href="styleskyo.css" rel="stylesheet"/></head>
+<body>
+    <py-config>
+        packages = ["openpyxl", "python-docx", "formulas", "pillow"]
+        [[fetch]]
+        files = ["./replacetext.py", "./final_SA_3_3.py", "./final_SA_3_4.py", "./final_SA_3_5.py", "./final_SA_3_5_mukadimah.py", "./final_SA_3_5_strukturBiaya.py", "./Final_docxTable_adder.py", "./addLogo_inHeaders.py","./Excels.xlsx", "./logoKontraktor.png"]
+    </py-config>
+
+    <div id="docx-output"></div>
+    <py-script>
+        # Import necessary libraries
+        from js import Uint8Array, fetch, document, URL, Blob,sessionStorage
+        import base64
+        from pyodide.http import open_url
+        import asyncio
+        import docx
+        from io import BytesIO
+        import pyodide
+        import json
+        import replacetext
+        import Final_docxTable_adder
+        import addLogo_inHeaders
+        import pyodide
+        from pyodide.http import pyfetch
+        from js import console
+        
+        async def fetch_JSON():
+            URL = "https://raw.githubusercontent.com/benagastov/PTSI_Database/main/contractdata_table.json"
+            
+            try:
+                console.log(f"Fetching from URL: {URL}")
+                response = await pyfetch(URL)
+                console.log(f"Response status: {response.status}")
+                
+                if response.status == 200:
+                    content = await response.json()
+                    console.log("Successfully fetched and parsed JSON data")
+                    return content
+                else:
+                    console.error(f"Failed to fetch data. Status code: {response.status}")
+                    error_text = await response.text()
+                    console.error(f"Error response: {error_text}")
+                    return None
+            except Exception as e:
+                console.error(f"An error occurred: {str(e)}")
+                return None
+        
+        async def store_JSON():
+            try:
+                contractdata_table = await fetch_JSON()
+                if contractdata_table is not None:
+                    sessionStorage.setItem('contractdata_table', json.dumps(contractdata_table))
+                    console.log("JSON data stored in sessionStorage")
+                else:
+                    console.error("Failed to store JSON data: No data received")
+            except Exception as e:
+                console.error(f"Error in store_JSON: {str(e)}")
+        
+        # Run the function
+        asyncio.ensure_future(store_JSON())
+
+        
+        async def populate_fields():
+            # Get the JSON data from local storage
+            contractdata_json =sessionStorage.getItem('contractdata_table')
+            if contractdata_json is not None:
+                contractdata = json.loads(contractdata_json)
+                # Iterate over each key-value pair in the JSON
+                for key, value in contractdata.items():
+                    # Find the corresponding input field using its label
+                    labels = document.querySelectorAll('label')
+                    for label in labels:
+                        if label.textContent == key:
+                            parts = label.id.split('_')
+                            # Use a default input ID for labels that do not have an underscore and a number
+                            if len(parts) > 1:
+                                input_id = f"lineEdit_{parts[1]}"
+                            else:
+                                input_id = "lineEdit"
+                            input_field = document.getElementById(input_id)
+                            if input_field is not None:
+                                input_field.value = str(value)
+                            break
+
+
+
+        async def main():
+            # Here you can call your async functions
+            await fetch_JSON()
+            await store_JSON()
+            await populate_fields()
+            # Dispatch a custom event to signal completion
+            from js import eval
+            eval("document.dispatchEvent(new Event('first-script-finished'))")
+
+        asyncio.ensure_future(main())
+    </py-script>
+
+    <py-script>
+        from js import document,sessionStorage, JSON
+        import asyncio
+        import json
+        from pyodide.ffi import create_proxy
+
+        from js import window, document, console, sessionStorage
+
+        async def update_JSON():
+            # Get the JSON data from session storage
+            contractdata_json = sessionStorage.getItem('contractdata_table')
+            if contractdata_json is not None:
+                contractdata = json.loads(contractdata_json)
+                # Iterate over each key-value pair in the JSON
+                for key, _ in contractdata.items():
+                    # Find the corresponding input field using its label
+                    labels = document.querySelectorAll('label')
+                    for label in labels:
+                        if label.textContent == key:
+                            parts = label.id.split('_')
+                            # Use a default input ID for labels that do not have an underscore and a number
+                            if len(parts) > 1:
+                                input_id = f"lineEdit_{parts[1]}"
+                            else:
+                                input_id = "lineEdit"
+                            input_field = document.getElementById(input_id)
+                            if input_field is not None:
+                                # Replace the value of the key in the JSON object with the value of the input field
+                                contractdata[key] = input_field.value
+                            break
+
+            contractdata["CONTRACTOR_NAME"] = contractdata["Penyedia Jasa"]
+            contractdata["COMMITMENT_TKDN_VALUE"] = contractdata["TKDN Komitmen"]
+            contractdata["SA_TKDN_VALUE"] = contractdata["TKDN Self Assessment"]
+            contractdata["VERIFICATION_TKDN_VALUE"] = contractdata["TKDN Hasil Verifikasi"]
+            window.sessionStorage.setItem('contractdata_table', json.dumps(contractdata))
+            sessionStorage.setItem('contractdata_table', json.dumps(contractdata))
+            console.log("JSON data updated.")
+
+            # Remove the file opening line and replace it with the session storage access
+            contractdata_json = sessionStorage.getItem('contractdata_table')
+            if contractdata_json is not None:
+                contractdata = json.loads(contractdata_json)
+            else:
+                print("No data found in session storage.")
+
+
+        # Event handler for button click that calls update_JSON
+        async def on_update_button_click(event):
+            await update_JSON()
+        
+        # Create a persistent proxy for the event handler
+        update_button = document.getElementById('pushButton_5')
+        update_button_proxy = create_proxy(on_update_button_click)
+        
+        # Add the proxy as the event listener for the click event
+        update_button.addEventListener('click', update_button_proxy)
+
+    </py-script>
+
+    <py-script>
+        from io import BytesIO
+        import PIL
+        
+        async def get_image(e):
+            files = e.target.files.to_py()
+            for file in files:
+                js.console.log(f"Reading file: {file.name}")
+                file_content = await file.arrayBuffer()
+                image_file = BytesIO(file_content.to_py()) # Convert the array buffer to a BytesIO object
+                img = PIL.Image.open(image_file)
+                img_byte_arr = BytesIO() # Declare img_byte_arr before saving the image
+                img.save(img_byte_arr, format='PNG') # Save the image to a byte array
+                img_byte_arr.seek(0) # Reset the position to the start of the file
+                img_byte_arr = img_byte_arr.getvalue() # Get the byte array
+                with open("./logoKontraktor.png", "wb") as f:
+                    f.write(img_byte_arr) # Write the bytes to a file
+                js.window.img = img    
+        
+        get_image_proxy = pyodide.ffi.create_proxy(get_image)
+        js.document.getElementById("imageInput").addEventListener("change", get_image_proxy)
+        
+    </py-script>
+
+    <py-script>
+        # Import necessary libraries
+        from js import Uint8Array, fetch, document, URL, Blob,sessionStorage
+        import base64
+        from pyodide.http import open_url
+        import asyncio
+        import docx
+        from io import BytesIO
+        import pyodide
+        import json
+        import replacetext
+        import Final_docxTable_adder
+        import addLogo_inHeaders
+        import openpyxl
+        import os
+
+        # Replace these values with your own
+        TOKEN = "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"
+        BRANCH = "main"
+        REPO = "PTSI_Database"
+        USER = "benagastov"
+        
+        async def get_file(e):
+            try:
+                files = e.target.files.to_py()
+                for file in files:
+                    console.log(f"Reading file: {file.name}")
+                    file_content = await file.arrayBuffer()
+                    xlsx_file = BytesIO(file_content.to_py())
+                    temp_file = "Excels.xlsx"
+                    with open(temp_file, "wb") as f:
+                        f.write(xlsx_file.getvalue())
+                    dirname = os.path.dirname(temp_file)
+                    workbooknya = openpyxl.load_workbook(xlsx_file, keep_vba=True)
+        
+                xlsx_file.seek(0)
+                
+                # Fetch the DOCX file
+                docx_url = "https://raw.githubusercontent.com/benagastov/PTSI_Database/main/testdocxpy.docx"
+                
+                console.log(f"Fetching from URL: {docx_url}")
+                response = await pyfetch(docx_url)
+                console.log(f"Response status: {response.status}")
+                
+                if response.status == 200:
+                    content = await response.bytes()
+                    docx_file = BytesIO(content)
+                    docxnya = docx.Document(docx_file)
+                    console.log("Successfully fetched and loaded DOCX data")
+                else:
+                    console.error(f"Failed to fetch DOCX. Status code: {response.status}")
+                    return
+        
+                contractdata_json = sessionStorage.getItem('contractdata_table')
+                if not contractdata_json:
+                    console.error("No contract data found in sessionStorage")
+                    return
+                contractdata = json.loads(contractdata_json)
+        
+                docxnya = replacetext.replace_text_all(docxnya, contractdata)
+                excelnya = xlsx_file
+                docxnya = Final_docxTable_adder.adding_tables_all(docxnya, contractdata, excelnya, dirname)
+                img = js.window.img
+                docxnya = addLogo_inHeaders.add_logo_toHeaders(docxnya, img)
+                
+                # Save the document to a BytesIO stream
+                doc_io = BytesIO()
+                docxnya.save(doc_io)
+                doc_io.seek(0)
+                
+                # Convert the BytesIO stream to a JavaScript object
+                content = pyodide.ffi.to_js(doc_io.getvalue())
+                
+                # Create a Blob from the content
+                blob = Blob.new([content], {'type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'})
+                
+                # Remove existing .py-terminal-docked elements
+                elements = document.querySelectorAll('.py-terminal-docked')
+                for el in elements:
+                    el.remove()
+        
+                downloadDoc = document.createElement('a')
+                downloadDoc.href = URL.createObjectURL(blob)
+                downloadDoc.download = 'result.docx'
+                
+                # Append the download link to the body
+                document.body.appendChild(downloadDoc)
+                
+                # Programmatically click the download link to start the download
+                downloadDoc.click()
+                
+                # Remove the download link after the download has started
+                document.body.removeChild(downloadDoc)
+        
+                console.log("DOCX processing and download completed successfully")
+            except Exception as e:
+                console.error(f"Error in get_file: {str(e)}")
+                console.error(f"Error type: {type(e)}")
+                console.error(f"Error args: {e.args}")
+
+            
+        get_file_proxy = pyodide.ffi.create_proxy(get_file)
+    
+        js.document.getElementById("fileInput").addEventListener("change", get_file_proxy)
+
+
+    </py-script>
+
+<div id="Form">
+<div class="container" id="scrollAreaWidgetContents">
+<div class="container" id="scrollAreaWidgetContents_2">
+<div class="container" id="scrollAreaWidgetContents_3">
+<button id="pushButton_4" type="button" py-click="change()">Tab 1</button>
+<button id="pushButton_5" type="button">Update JSON</button>
+<input class="input" id="lineEdit_6" type="text"/>
+<input class="input" id="lineEdit_4" type="text"/>
+<input class="input" id="lineEdit_5" type="text"/>
+<input class="input" id="lineEdit_3" type="text"/>
+<input class="input" id="lineEdit_2" type="text"/>
+<input class="input" id="lineEdit" type="text"/>
+<label class="label" id="label" type="text">Nomor Kontrak</label>
+<label class="label" id="label_2" type="text">Penyedia Jasa</label>
+<label class="label" id="label_3" type="text">Periode Kontrak</label>
+<label class="label" id="label_4" type="text">TKDN Komitmen</label>
+<label class="label" id="label_5" type="text">SA_TKDN_VALUE</label>
+<label class="label" id="label_6" type="text">TKDN Hasil Verifikasi</label></div>
+<div class="container" id="scrollAreaWidgetContents_4">
+<button id="pushButton_8" py-click="change()" type="button">Tab 2</button>
+<input class="input" id="lineEdit_7" type="text"/>
+<input class="input" id="lineEdit_8" type="text"/>
+<input class="input" id="lineEdit_9" type="text"/>
+<input class="input" id="lineEdit_10" type="text"/>
+<input class="input" id="lineEdit_11" type="text"/>
+<input class="input" id="lineEdit_12" type="text"/>
+<label class="label" id="label_7" type="text">Periode Data Verifikasi TKDN</label>
+<label class="label" id="label_8" type="text">Pengguna Jasa</label>
+<label class="label" id="label_9" type="text">Nilai Kontrak</label>
+<label class="label" id="label_10" type="text">Nilai Kontrak Realisasi</label>
+<label class="label" id="label_11" type="text">Jenis Verifikasi</label>
+<label class="label" id="label_12" type="text">VERIFICATOR_NAME</label></div>
+<button id="pushButton_1" py-click="python_function()" type="button">Home</button>
+<button id="pushButton_2" py-click="python_function()" type="button">Examples</button>
+<button id="pushButton_3" py-click="python_function()" type="button">Contact Us</button>
+<button id="pushButton_10" py-click="upload_excel()" type="button">XLSX</button>
+<button id="pushButton_11" py-click="upload_logoperusahaan()" type="button">Logo Kontraktor</button>
+<button id="pushButton_12" type="button">Olah Excel</button>
+<label class="label" id="label_99" type="text">Pembuat Laporan Closing PTSI</label>
+<label class="label" id="label_991" type="text">Dapat menggunakan Excel yang sudah diperiksa QC Laporan untuk langsung diolah menjadi laporan dalam format .docx Microsoft Word lengkap dengan tabel dan logo perusahaan Kontraktor. Harap isi form data berikut:</label>
+<img class="img" id="htmlpicture" src="https://i.ibb.co/StKNJxn/Untitled-design-1-unscreen.gif"/>
+<img class="img" id="htmlpicture_2" src="https://i.ibb.co/PgGpCBy/image-removebg-preview-5.png"/>
+<input type="file" id="fileInput" accept=".xlsx"/>
+<input type="file" id="imageInput" accept="image/png, image/jpeg, image/bmp"/>
+</div></div></div>
+
+<py-script>
+    from js import document
+    def upload_excel():
+        document.getElementById('fileInput').click()
+    
+    def upload_logoperusahaan():
+        document.getElementById('imageInput').click()
+</py-script>
+
+
+<py-script>
+    import js
+    from js import document
+    
+    # Store original positions
+    original_wrapper1_top = document.getElementById("scrollAreaWidgetContents_3").getBoundingClientRect().top
+    original_wrapper1_left = document.getElementById("scrollAreaWidgetContents_3").getBoundingClientRect().left
+    original_wrapper2_top = document.getElementById("scrollAreaWidgetContents_4").getBoundingClientRect().top
+    original_wrapper2_left = document.getElementById("scrollAreaWidgetContents_4").getBoundingClientRect().left
+    
+    def change():
+        wrapper1 = document.getElementById("scrollAreaWidgetContents_3")
+        wrapper2 = document.getElementById("scrollAreaWidgetContents_4")
+    
+        # Use stored original positions for transitions
+        wrapper1.style.transition = 'top 300ms ease-in, left 300ms ease-in, height 300ms ease-in, opacity 300ms ease-in'
+        wrapper2.style.transition = 'top 300ms ease-in, left 300ms ease-in, height 300ms ease-in, opacity 300ms ease-in'
+    
+        if wrapper1.style.height == '0px':
+            # Animate to original positions
+            wrapper1.style.top = str(original_wrapper1_top+10) +'px'
+            wrapper1.style.left = original_wrapper2_left
+            wrapper2.style.top = str(original_wrapper2_top+10)+'px'
+            wrapper2.style.left = original_wrapper1_left
+    
+            # After animation, update current positions
+            wrapper1.style.height = '291px'
+            wrapper1.style.opacity = '1'
+            wrapper2.style.height = '0px'
+            wrapper2.style.opacity = '0'
+        else:
+            # Animate to original positions
+            wrapper1.style.top = str(original_wrapper2_top+10) +'px'
+            wrapper1.style.left = original_wrapper2_left
+            wrapper2.style.top = str(original_wrapper1_top+10) +'px'
+            wrapper2.style.left = original_wrapper1_left
+    
+            # After animation, update current positions
+            wrapper1.style.height = '0px'
+            wrapper1.style.opacity = '0'
+            wrapper2.style.height = '291px'
+            wrapper2.style.opacity = '1'
+
+    
+</py-script>
+
+<script>
+function change() {
+    console.log("Hellas")
+    const wrapper1 = document.getElementById("scrollAreaWidgetContents_3");
+    if (wrapper1.style.height === '0px') {
+        wrapper1.style.overflow = 'visible';
+        wrapper1.style.height = '291px'; // Assuming you want to set it back to its original height
+    } else {
+        wrapper1.style.height = '0px';
+        wrapper1.style.overflow = 'hidden';
+    }
+}
+
+</script>
+
+
+<py-script></py-script>
+
+</body></html>
