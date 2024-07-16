@@ -174,7 +174,10 @@
                 js.console.log(f"Reading file: {file.name}")
                 file_content = await file.arrayBuffer()
                 image_file = BytesIO(file_content.to_py()) # Convert the array buffer to a BytesIO object
-                img = PIL.Image.open(image_file)
+                if (image_file):
+                    img = PIL.Image.open("logoKontraktor.png")
+                else:
+                    img = PIL.Image.open(image_file)
                 img_byte_arr = BytesIO() # Declare img_byte_arr before saving the image
                 img.save(img_byte_arr, format='PNG') # Save the image to a byte array
                 img_byte_arr.seek(0) # Reset the position to the start of the file
