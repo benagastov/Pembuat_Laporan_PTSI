@@ -164,30 +164,28 @@
 
     </py-script>
 
-    <py-script>
+    <py-script>       
         from io import BytesIO
-        import PIL
+        import PIL.Image
+        from js import window
         
         async def get_image(e):
             files = e.target.files.to_py()
             for file in files:
-                js.console.log(f"Reading file: {file.name}")
+                console.log(f"Reading file: {file.name}")
                 file_content = await file.arrayBuffer()
-                image_file = BytesIO(file_content.to_py()) # Convert the array buffer to a BytesIO object
-                if (image_file):
-                    img = PIL.Image.open(image_file)
-                else:
-                    img = PIL.Image.open("logoKontraktor.png")
-                img_byte_arr = BytesIO() # Declare img_byte_arr before saving the image
-                img.save(img_byte_arr, format='PNG') # Save the image to a byte array
-                img_byte_arr.seek(0) # Reset the position to the start of the file
-                img_byte_arr = img_byte_arr.getvalue() # Get the byte array
+                image_file = BytesIO(file_content.to_py())
+                img = PIL.Image.open(image_file)
+                img_byte_arr = BytesIO()
+                img.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                img_byte_arr = img_byte_arr.getvalue()
                 with open("./logoKontraktor.png", "wb") as f:
-                    f.write(img_byte_arr) # Write the bytes to a file
-                js.window.img = img    
+                    f.write(img_byte_arr)
+                window.img = img
         
         get_image_proxy = pyodide.ffi.create_proxy(get_image)
-        js.document.getElementById("imageInput").addEventListener("change", get_image_proxy)
+        document.getElementById("imageInput").addEventListener("change", get_image_proxy)
         
     </py-script>
 
@@ -213,8 +211,24 @@
         REPO = "PTSI_Database"
         USER = "benagastov"
         
+        from js import Uint8Array, fetch, document, URL, Blob, sessionStorage, window
+        import base64
+        from pyodide.http import open_url, pyfetch
+        import asyncio
+        import docx
+        from io import BytesIO
+        import pyodide
+        import json
+        import replacetext
+        import Final_docxTable_adder
+        import addLogo_inHeaders
+        import openpyxl
+        import os
+        import PIL.Image
+        
         async def get_file(e):
             try:
+                global Sudah_Upload
                 files = e.target.files.to_py()
                 for file in files:
                     console.log(f"Reading file: {file.name}")
@@ -253,10 +267,13 @@
                 docxnya = replacetext.replace_text_all(docxnya, contractdata)
                 excelnya = xlsx_file
                 docxnya = Final_docxTable_adder.adding_tables_all(docxnya, contractdata, excelnya, dirname)
-                if (Sudah_Upload == True):
-                    img = js.window.img
+                
+                # Check if image has been uploaded
+                if hasattr(window, 'img') and window.img:
+                    img = window.img
                 else:
                     img = PIL.Image.open("logoKontraktor.png")
+                
                 docxnya = addLogo_inHeaders.add_logo_toHeaders(docxnya, img)
                 
                 # Save the document to a BytesIO stream
@@ -293,11 +310,9 @@
                 console.error(f"Error in get_file: {str(e)}")
                 console.error(f"Error type: {type(e)}")
                 console.error(f"Error args: {e.args}")
-
-            
+        
         get_file_proxy = pyodide.ffi.create_proxy(get_file)
-    
-        js.document.getElementById("fileInput").addEventListener("change", get_file_proxy)
+        document.getElementById("fileInput").addEventListener("change", get_file_proxy)
 
 
     </py-script>
