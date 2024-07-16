@@ -16,6 +16,8 @@
 
     <div id="docx-output"></div>
     <py-script>
+        global Sudah_Upload
+        Sudah_Upload = False
         # Import necessary libraries
         from js import Uint8Array, fetch, document, URL, Blob,sessionStorage
         import base64
@@ -228,7 +230,6 @@
         
         async def get_file(e):
             try:
-                global Sudah_Upload
                 files = e.target.files.to_py()
                 for file in files:
                     console.log(f"Reading file: {file.name}")
